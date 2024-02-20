@@ -1,16 +1,28 @@
-import * as cdk from 'aws-cdk-lib';
-import { Construct } from 'constructs';
-import { aws_amplify as amplify } from 'aws-cdk-lib';
+import {
+  Stack,
+  StackProps,
+} from 'aws-cdk-lib';
+import { Construct } from 'constructs'; 
+import { EnvProps } from './environment-interface';
+import { CmsAmplify } from './amplify/cms-amplify';
+import { CmsAmplifyProps } from './amplify/cms-amplify-interface';
 
-export class CdkStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+export class CdkStack extends Stack {
+  constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
+    const env = props?.env as EnvProps;
 
-    // Create Amplify App
-    const amplifyApp = new amplify.CfnApp(this, 'UMapApp', {
-      name: 'UMapApp',
-      repository: '',
-      oauthToken: '',
-    });
+    // The code that defines your stack goes here
+    const amplify_env: CmsAmplifyProps = {
+      amplifyRepositoryUrl: env.amplifyRepositoryUrl,
+      amplifyOauthToken: env.amplifyOauthToken,
+      amplifyBranch: env.amplifyBranch,
+    };
+    new CmsAmplify(
+      this, 
+      'CmsAmplifyStack', 
+      amplify_env,
+    );
+    
   }
 }
