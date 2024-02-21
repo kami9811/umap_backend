@@ -7,7 +7,9 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./src:/usr/src
+      - ./.aws:/root/.aws
     working_dir: "/usr/src"
-    # ports:
-    #   - "8080:8080"
     tty: true
+    platform: linux/amd64  # For Apple Silicon Tips
+    env_file:
+      - .env

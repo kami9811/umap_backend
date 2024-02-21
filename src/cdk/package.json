@@ -10,7 +10,8 @@
     "test": "jest",
     "cdk": "cdk",
     "deploy_dev": "cdk deploy -c environment=dev",
-    "deploy_prod": "cdk deploy -c environment=prod"
+    "deploy_prod": "cdk deploy -c environment=prod",
+    "login": "aws sso login --profile my-sso"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",

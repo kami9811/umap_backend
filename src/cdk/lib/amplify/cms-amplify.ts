@@ -14,8 +14,6 @@ export class CmsAmplify extends Construct {
   constructor(scope: Construct, id: string, props: CmsAmplifyProps) {
     super(scope, id);
 
-    // const env = getAppEnvironment();
-
     // Create Amplify App
     const amplifyApp = new CfnApp(this, 'UMapCmsApp', {
       name: 'UMapCmsApp',
@@ -24,7 +22,7 @@ export class CmsAmplify extends Construct {
     });
 
     new CfnBranch(this, 'UMapCmsAppBranch', {
-      appId: amplifyApp.ref,
+      appId: amplifyApp.attrAppId,
       branchName: props.amplifyBranch,
       enableAutoBuild: true,
     });

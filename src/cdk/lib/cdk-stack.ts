@@ -6,6 +6,7 @@ import { Construct } from 'constructs';
 import { EnvProps } from './environment-interface';
 import { CmsAmplify } from './amplify/cms-amplify';
 import { CmsAmplifyProps } from './amplify/cms-amplify-interface';
+import { CmsCognito } from './cognito/cms-cognito';
 
 export class CdkStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -23,6 +24,9 @@ export class CdkStack extends Stack {
       'CmsAmplifyStack', 
       amplify_env,
     );
-    
+    new CmsCognito(
+      this,
+      'CmsCognitoStack',
+    );
   }
 }
