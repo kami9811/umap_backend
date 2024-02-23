@@ -185,5 +185,41 @@ export class BackendStack extends Stack {
     );
     const postCsvDockerLambdaIntegration: LambdaIntegration = new LambdaIntegration(PostCsvDockerLambdaFunction);
     const csvs = addPostResourcePath(api, "csv", postCsvDockerLambdaIntegration);
+
+    const postAccountLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'PostAccountLambdaFunction',
+      'post-account.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const postAccountLambdaIntegration: LambdaIntegration = new LambdaIntegration(postAccountLambdaFunction);
+    const account: Resource = addPostResourcePath(api, "account", postAccountLambdaIntegration);
+
+    const getItemsLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'getItemsLambdaFunction',
+      'get-items.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const getItemsLambdaIntegration: LambdaIntegration = new LambdaIntegration(getItemsLambdaFunction);
+    const items: Resource = addGetResourcePath(api, "items", getItemsLambdaIntegration);
+
+    const postDataStructureLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'postDataStructureLambdaFunction',
+      'post-data-structure.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const postDataStructureLambdaIntegration: LambdaIntegration = new LambdaIntegration(postDataStructureLambdaFunction);
+    const dataStructure: Resource = addPostResourcePath(api, "data_structure", postDataStructureLambdaIntegration);
   }
 }

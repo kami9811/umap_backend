@@ -1,0 +1,192 @@
+```
+import json
+import pymysql
+import os
+import boto3
+
+
+def get_db_credentials(secret_arn):
+    # Create Secrets Manager client
+    client = boto3.client('secretsmanager')
+
+    # Get the secret value
+    response = client.get_secret_value(SecretId=secret_arn)
+    if 'SecretString' in response:
+        secret = response['SecretString']
+        secret_dict = json.loads(secret)
+        return secret_dict['username'], secret_dict['password']
+    else:
+        raise Exception("Secret does not have a SecretString.")
+
+def handler(event, context):
+    try:
+        # 環境変数からシークレットのARNを取得
+        secret_arn = os.environ['SECRET_ARN']
+        # データベースの認証情報を取得
+        user, password = get_db_credentials(secret_arn)
+
+        # 環境変数から接続情報を取得
+        host = os.environ['DB_HOST']
+        database = os.environ['DB_NAME']
+
+        # データベースに接続
+        conn = pymysql.connect(
+            host=host, 
+            user=user, 
+            passwd=password, 
+            db=database, 
+            connect_timeout=600,
+        )
+        with conn.cursor() as cursor:
+            # データベースの作成（存在しない場合）
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {database};")
+            
+            # データベースを指定
+            cursor.execute(f"USE {database};")
+            
+            # Create QUESTIONS table
+            # Create ORGANIZATIONS table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ORGANIZATIONS (
+                    id VARCHAR(64) PRIMARY KEY,
+                    data_attributes JSON,
+                    is_abstract_data JSON
+                );
+            """)
+
+            # Create USERS table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS USERS (
+                    email VARCHAR(64) PRIMARY KEY,
+                    organization_id VARCHAR(64),
+                    FOREIGN KEY (organization_id) REFERENCES ORGANIZATIONS(id)
+                );
+            """)
+            
+            # Create ITEMS table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ITEMS (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    organization_id VARCHAR(64),
+                    data_values JSON,
+                    is_abstract_data JSON,
+                    FOREIGN KEY (organization_id) REFERENCES ORGANIZATIONS(id)
+                );
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS QUESTIONS (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    item_id INT,
+                    question_user VARCHAR(64),
+                    question_title VARCHAR(64),
+                    question_text VARCHAR(512),
+                    FOREIGN KEY (item_id) REFERENCES ITEMS(id)
+                );
+            """)
+            
+            # Create ANSWERS table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ANSWERS (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    question_id INT,
+                    answer_user VARCHAR(64),
+                    answer_text VARCHAR(512),
+                    FOREIGN KEY (question_id) REFERENCES QUESTIONS(id)
+                );
+            """)
+            
+            # Create MESSAGES table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS MESSAGES (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    question_id INT,
+                    text VARCHAR(64),
+                    FOREIGN KEY (question_id) REFERENCES QUESTIONS(id)
+                );
+            """)
+            
+            conn.commit()
+    except Exception as e:
+        print(e)
+        return {
+            'statusCode': 400,
+            'body': json.dumps('Error creating database and table')
+        }
+    
+    return {
+        'statusCode': 200,
+        'body': json.dumps('Successfully created database and table')
+    }
+```
+のような形で，auroradb上にテーブルを作成しました．
+前述のデータベースに対して，操作を行うAPIを実装したいです．
+
+ベースとなるコードを次に示します．
+
+```
+import json
+import boto3
+from botocore.config import Config
+import os
+
+# 環境変数からリソース名を取得
+TABLE_NAME = os.environ['TABLE_NAME']
+CLUSTER_ARN = os.environ['CLUSTER_ARN']
+SECRET_ARN = os.environ['SECRET_ARN']
+
+# RDS Data Serviceクライアントの初期化
+rds_config = Config(
+    read_timeout=90,  # Set read timeout to 90 seconds
+    connect_timeout=30,  # Set connection timeout to 30 seconds
+    retries={'max_attempts': 5}  # Enable retries with a reasonable number of attempts
+)
+rds_data = boto3.client('rds-data', config=rds_config)
+
+def handler(event, context):
+    # API Gatewayからのリクエストボディを解析
+    body = json.loads(event['body'])
+    id = body['id']
+    json_data = body['json_data']
+
+    rds_database_name = os.environ['DB_NAME']
+    rds_table_name = "example_table"
+    
+    # Aurora DBにIDとJSONデータを保存
+    sql = f"INSERT INTO {rds_table_name} (id, json_data) VALUES (:id, :json_data)"
+    parameters = [
+        {'name':'id', 'value':{'stringValue': id}},
+        {'name':'json_data', 'value':{'stringValue': json.dumps(json_data)}}
+    ]
+    print(parameters)
+    
+    rds_data.execute_statement(
+        database=rds_database_name,
+        resourceArn=CLUSTER_ARN,
+        secretArn=SECRET_ARN,
+        sql=sql,
+        parameters=parameters,
+    )
+    
+    return {
+        'statusCode': 200,
+        'body': json.dumps({
+            'message': 'Data successfully saved to DynamoDB and Aurora DB'
+        }),
+        'headers': {
+            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Origin": '*',
+            "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
+        },
+    }
+
+```
+
+必要に応じて，このコードを書き直して，次のAPIを実装してください．
+
+====
+
+====
+
+Let's think, step by step.
+応援しているので，限界以上に頑張ってください！！！
