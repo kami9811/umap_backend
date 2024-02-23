@@ -221,5 +221,31 @@ export class BackendStack extends Stack {
     );
     const postDataStructureLambdaIntegration: LambdaIntegration = new LambdaIntegration(postDataStructureLambdaFunction);
     const dataStructure: Resource = addPostResourcePath(api, "data_structure", postDataStructureLambdaIntegration);
+
+    const postDataToOrganizationDockerLambdaFunction = createDataProcessDBAccessLambdaFunction(
+      this,
+      'PostDataToOrganizationDockerLambdaFunction',
+      DockerImageCode.fromImageAsset('lib/backend/lambda/python/dockers/post-data-to-organization'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const postDataToOrganizationDockerLambdaIntegration: LambdaIntegration = new LambdaIntegration(postDataToOrganizationDockerLambdaFunction);
+    const data: Resource = api.root.addResource("data");
+    const dataToOrganization: Resource = data.addResource("{organization_id}");
+    dataToOrganization.addMethod("POST", postDataToOrganizationDockerLambdaIntegration);
+    
+    const getNearItemsLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'getNearItemsLambdaFunction',
+      'get-near-items.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const getNearItemsLambdaIntegration: LambdaIntegration = new LambdaIntegration(getNearItemsLambdaFunction);
+    const nearItems: Resource = addGetResourcePath(api, "near_items", getNearItemsLambdaIntegration);
+
   }
 }
