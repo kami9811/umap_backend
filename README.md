@@ -46,3 +46,14 @@ cdk bootstrap -c environment=dev / prod
 npm run cdk deploy -c environment=dev  # for staging / npm run deploy_dev
 npm run cdk deploy -c environment=prod  # for productionnpm / npm run deploy_prod
 ```
+
+## SQL Nonte
+```
+# select * from information_schema.tables;
+# 以下の最新データベーステーブルを実行して表示するを押してください
+use umap_db;
+show tables;
+SELECT *
+FROM example_table
+WHERE JSON_EXTRACT(json_data, '$.position') = 14;
+```

@@ -5,10 +5,10 @@ import boto3
 
 
 def get_db_credentials(secret_arn):
-    # Secrets Managerクライアントの作成
+    # Create Secrets Manager client
     client = boto3.client('secretsmanager')
 
-    # シークレットの値を取得
+    # Get the secret value
     response = client.get_secret_value(SecretId=secret_arn)
     if 'SecretString' in response:
         secret = response['SecretString']
@@ -43,13 +43,68 @@ def handler(event, context):
             # データベースを指定
             cursor.execute(f"USE {database};")
             
-            # テーブルの作成（存在しない場合）
+            # Create QUESTIONS table
+            # Create ORGANIZATIONS table
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS example_table (
-                    id VARCHAR(255) NOT NULL PRIMARY KEY,
-                    json_data JSON NOT NULL
+                CREATE TABLE IF NOT EXISTS ORGANIZATIONS (
+                    id VARCHAR(64) PRIMARY KEY,
+                    data_attributes JSON,
+                    is_abstract_data JSON
                 );
             """)
+
+            # Create USERS table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS USERS (
+                    email VARCHAR(64) PRIMARY KEY,
+                    organization_id VARCHAR(64),
+                    FOREIGN KEY (organization_id) REFERENCES ORGANIZATIONS(id)
+                );
+            """)
+            
+            # Create ITEMS table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ITEMS (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    organization_id VARCHAR(64),
+                    data_values JSON,
+                    is_abstract_data JSON,
+                    FOREIGN KEY (organization_id) REFERENCES ORGANIZATIONS(id)
+                );
+            """)
+
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS QUESTIONS (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    item_id INT,
+                    question_user VARCHAR(64),
+                    question_title VARCHAR(64),
+                    question_text VARCHAR(512),
+                    FOREIGN KEY (item_id) REFERENCES ITEMS(id)
+                );
+            """)
+            
+            # Create ANSWERS table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ANSWERS (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    question_id INT,
+                    answer_user VARCHAR(64),
+                    answer_text VARCHAR(512),
+                    FOREIGN KEY (question_id) REFERENCES QUESTIONS(id)
+                );
+            """)
+            
+            # Create MESSAGES table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS MESSAGES (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    question_id INT,
+                    text VARCHAR(64),
+                    FOREIGN KEY (question_id) REFERENCES QUESTIONS(id)
+                );
+            """)
+            
             conn.commit()
     except Exception as e:
         print(e)
