@@ -4,8 +4,7 @@ Copy `env` as `.env`.
 Create 'config' at '/aws'.
 <!-- Next, Set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` -->
 
-Before using this projects, you must create aws account based on `IAM Identity Center
-` and set appropriate authorization.
+Before using this projects, you must create aws account based on `IAM Identity Center` and set appropriate authorization.
 
 How to set AWS CLI =>
 ```
