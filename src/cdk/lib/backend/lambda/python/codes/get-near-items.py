@@ -5,27 +5,29 @@ from math import radians, cos, sin, sqrt, atan2
 import os
 import time
 
-# Initialize RDS Data Service client
-rds_data = boto3.client('rds-data', config=Config(read_timeout=90, connect_timeout=30, retries={'max_attempts': 5}))
-
-# Environment variables
+# 環境変数から情報を取得
 CLUSTER_ARN = os.environ['CLUSTER_ARN']
 SECRET_ARN = os.environ['SECRET_ARN']
 DB_NAME = os.environ['DB_NAME']
 
+# RDS Data Serviceクライアントの初期化
+rds_data = boto3.client('rds-data', config=Config(read_timeout=90, connect_timeout=30, retries={'max_attempts': 5}))
+
 def calculate_distance(lat1, lon1, lat2, lon2):
-    # Approximate radius of earth in km
+    # 地球の半径（キロメートル）
     R = 6371.0
 
-    dlat = radians(lat2 - lat1)
-    dlon = radians(lon2 - lon1)
-    a = sin(dlat / 2)**2 + cos(radians(lat1)) * cos(radians(lat2)) * sin(dlon / 2)**2
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    dlon = lon2 - lon1
+    dlat = lat2 - lat1
+
+    a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
     c = 2 * atan2(sqrt(a), sqrt(1 - a))
 
     distance = R * c
     return distance
 
-def execute_statement_with_retry(sql, parameters, max_attempts=5, base_delay=1.0, max_delay=30.0):
+def execute_statement_with_retry(sql, parameters, max_attempts=5, base_delay=4.0, max_delay=30.0):
     attempt = 0
     while attempt < max_attempts:
         try:
@@ -45,41 +47,61 @@ def execute_statement_with_retry(sql, parameters, max_attempts=5, base_delay=1.0
             time.sleep(min(max_delay, base_delay * 2 ** attempt))
 
 def handler(event, context):
+    # クエリパラメータから必要な情報を取得
     query_params = event['queryStringParameters']
     organization_id = query_params['organization_id']
     latitude = float(query_params['latitude'])
     longitude = float(query_params['longitude'])
 
-    sql = """
+    # ITEMSから指定されたorganization_idに関連する全アイテムを取得
+    sql_items = f"""
     SELECT id, data_values, is_abstract_data
     FROM ITEMS
     WHERE organization_id = :organization_id
     """
-    parameters = [{'name': 'organization_id', 'value': {'stringValue': organization_id}}]
+    parameters_items = [{'name': 'organization_id', 'value': {'stringValue': organization_id}}]
 
-    response = execute_statement_with_retry(sql, parameters)
-    items = response['records']
+    response_items = execute_statement_with_retry(sql_items, parameters_items)
+    items = response_items['records']
 
-    # TODO: Acceralate the following code
-    # Filter items based on distance
-    nearest_items = []
+    # 距離に基づいてアイテムをフィルタリングしてソート
+    sorted_items = []
     for item in items:
-        item_lat = item['data_values']['latitude']  # Assuming data_values is a dict with latitude
-        item_lon = item['data_values']['longitude']  # Assuming data_values is a dict with longitude
-        dist = calculate_distance(latitude, longitude, item_lat, item_lon)
-        item['distance'] = dist  # Add distance for sorting
-        nearest_items.append(item)
+        item_data = json.loads(item[1]['stringValue'])  # data_values列
+        item_lat = item_data['緯度']
+        item_lon = item_data['経度']
+        distance = calculate_distance(latitude, longitude, item_lat, item_lon)
+        sorted_items.append((item, distance))
 
-    # Sort by distance and select the top 5
-    nearest_items.sort(key=lambda x: x['distance'])
-    top_items = nearest_items[:5]
+    # 距離でソートし、最も近い5つのアイテムを選択
+    sorted_items.sort(key=lambda x: x[1])
+    nearest_items = sorted_items[:5]
+
+    # 結果を整形
+    print(nearest_items)
+    result_items = [{
+        "data_values": json.loads(item[0][1]['stringValue']),
+        "is_abstract_data": json.loads(item[0][2]['stringValue'])
+    } for item in nearest_items]
+
+    # ORGANIZATIONSからis_abstract_dataを取得
+    sql_org = f"""
+    SELECT is_abstract_data
+    FROM ORGANIZATIONS
+    WHERE id = :organization_id
+    """
+    parameters_org = [{'name': 'organization_id', 'value': {'stringValue': organization_id}}]
+
+    response_org = execute_statement_with_retry(sql_org, parameters_org)
+    organization_is_abstract_data = json.loads(response_org['records'][0][0]['stringValue'])
 
     return {
         'statusCode': 200,
         'body': json.dumps({
-            'status': 200,
-            'items': top_items,
-            'message': 'Successfully retrieved nearest items.'
+            "status": 200,
+            "items": result_items,
+            "organization_is_abstract_data": organization_is_abstract_data,
+            "message": "Successfully retrieved nearest items."
         }),
         'headers': {
             "Access-Control-Allow-Headers": "Content-Type",
