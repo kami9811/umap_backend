@@ -8,3 +8,8 @@ node_modules
 cdk.out
 
 cdk.json
+
+/lib/backend/lambda/python/libraries/data_process/python/lib/python3.12/site-packages/*
+/lib/backend/lambda/python/data_process_lambda_layer.zip
+/lib/backend/lambda/python/libraries/db_process/python/lib/python3.12/site-packages/*
+/lib/backend/lambda/python/db_process_lambda_layer.zip
