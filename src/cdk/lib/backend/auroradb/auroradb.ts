@@ -1,15 +1,31 @@
+import { Duration } from 'aws-cdk-lib';
 import { Construct } from 'constructs'
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
-import * as rds from 'aws-cdk-lib/aws-rds';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import { ServerlessCluster } from 'aws-cdk-lib/aws-rds';
+import {
+  ServerlessCluster,
+  AuroraCapacityUnit,
+  DatabaseClusterEngine,
+} from 'aws-cdk-lib/aws-rds';
+import {
+  Vpc,
+  SecurityGroup,
+} from 'aws-cdk-lib/aws-ec2';
 
-class Auroradb extends Construct {
-  constructor(scope: Construct, id: string) {
-    super(scope, id);
-
-    
-  }
+export function createAuroraServerless(
+  scope: Construct,
+  id: string,
+  vpc: Vpc,
+  defaultDatabaseName: string,
+  auroraSecurityGroup: SecurityGroup,
+): ServerlessCluster {
+  return new ServerlessCluster(scope, id, {
+    engine: DatabaseClusterEngine.AURORA_MYSQL,
+    vpc,
+    scaling: {
+      autoPause: Duration.minutes(5),
+      minCapacity: AuroraCapacityUnit.ACU_1,
+      maxCapacity: AuroraCapacityUnit.ACU_16,
+    },
+    defaultDatabaseName: defaultDatabaseName,
+    securityGroups: [auroraSecurityGroup],
+  });
 }

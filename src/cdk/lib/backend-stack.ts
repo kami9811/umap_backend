@@ -2,6 +2,8 @@ import {
   Stack,
   StackProps,
   Duration,
+  Aws,
+  RemovalPolicy,
 } from 'aws-cdk-lib';
 import { Construct } from 'constructs'; 
 import { EnvProps } from './environment-interface';
@@ -9,6 +11,7 @@ import {
   LayerVersion,
   Function,
   Code,
+  DockerImageCode,
   Runtime,
 } from 'aws-cdk-lib/aws-lambda';
 import {
@@ -17,6 +20,7 @@ import {
   MockIntegration,
   IResource,
   RestApi,
+  Resource,
 } from 'aws-cdk-lib/aws-apigateway';
 import {
   Table,
@@ -38,11 +42,41 @@ import {
   Port,
 } from 'aws-cdk-lib/aws-ec2';
 import { PolicyStatement } from 'aws-cdk-lib/aws-iam';
+import { 
+  Repository,
+} from 'aws-cdk-lib/aws-ecr';
+import { DockerImageAsset } from 'aws-cdk-lib/aws-ecr-assets';
+import { 
+  ECRDeployment,
+  DockerImageName,
+} from 'cdk-ecr-deployment';
 
 import {
   createVpc,
-  createSecurityGroup
+  createSecurityGroup,
+  allowLambdaToAurora,
 } from './backend/vpc/vpc';
+import {
+  createAuroraServerless,
+} from './backend/auroradb/auroradb';
+import {
+  createDBProcessLayer,
+  createDataProcessLambdaLayer,
+  createAuroraSetupLambda,
+  addSecretsManagerPolicy,
+  createAuroraDbSetupResource,
+  createDBAccessLambdaFunction,
+  createDataProcessDBAccessLambdaFunction,
+} from './backend/lambda/lambda';
+import { createDynamoDBTable } from './backend/dynamodb/dynamodb';
+import {
+  createRestApi,
+  addPostResourcePath,
+  addPostResourceParamedPath,
+  addGetResourcePath,
+  addGetResourceParamedPath,
+} from './backend/gateway/gateway';
+
 
 export class BackendStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -66,132 +100,90 @@ export class BackendStack extends Stack {
       'Security group for Aurora Serverless v2',
     );
     // Lambda関数からの接続を許可
-    auroraSecurityGroup.addIngressRule(
-      lambdaSecurityGroup, 
-      Port.tcp(3306), 
-      'Allow access from Lambda'
-    );
+    allowLambdaToAurora(lambdaSecurityGroup, auroraSecurityGroup);
 
     // Aurora Serverless v2のクラスター設定
     const defaultDatabaseName: string = 'umap_db';
-    const cluster = new ServerlessCluster(this, 'AuroraCluster', {
-      engine: DatabaseClusterEngine.AURORA_MYSQL,
+    const cluster = createAuroraServerless(
+      this,
+      'AuroraServerless',
       vpc,
-      scaling: {
-        autoPause: Duration.minutes(5),
-        minCapacity: AuroraCapacityUnit.ACU_1,
-        maxCapacity: AuroraCapacityUnit.ACU_16,
-      }, // スケーリング設定
-      defaultDatabaseName: defaultDatabaseName,
-      securityGroups: [auroraSecurityGroup],
-    });
+      defaultDatabaseName,
+      auroraSecurityGroup,
+    );
 
     // Lambdaレイヤーの作成
-    const dbProcessLambdaLayer = new LayerVersion(this, 'DBProcessLambdaLayer', {
-      code: Code.fromAsset('lib/backend/lambda/python/db_process_lambda_layer.zip'),
-      compatibleRuntimes: [Runtime.PYTHON_3_12],
-      description: 'A layer containing pymysql',
-    });
+    const dbProcessLambdaLayer = createDBProcessLayer(
+      this,
+      'DBProcessLambdaLayer',
+    );
     // Aurora DBセットアップ用のLambda関数
-    const auroraSetupLambda = new Function(this, 'AuroraSetupFunction', {
-      runtime: Runtime.PYTHON_3_12, // ランタイムバージョンに注意
-      handler: 'bootstrap-function.handler',
-      code: Code.fromAsset('lib/backend/lambda/python/resources/auroradb'),
-      layers: [dbProcessLambdaLayer], // レイヤーの追加
-      vpc: vpc,
-      securityGroups: [lambdaSecurityGroup],
-      environment: {
-        SECRET_ARN: cluster.secret?.secretArn || '', // シークレットのARNを環境変数に追加
-        DB_HOST: cluster.clusterEndpoint.hostname,
-        DB_NAME: defaultDatabaseName,
-      },
-      timeout: Duration.seconds(600),
-    });
-    auroraSetupLambda.addToRolePolicy(new PolicyStatement({
-      actions: ['rds-data:*', 'secretsmanager:GetSecretValue'],
-      resources: ['*', cluster.secret?.secretArn || ''],
-    }));
+    const auroraSetupLambda = createAuroraSetupLambda(
+      this,
+      'AuroraSetupFunction',
+      dbProcessLambdaLayer,
+      vpc,
+      lambdaSecurityGroup,
+      cluster,
+      defaultDatabaseName,
+    );
+    addSecretsManagerPolicy(auroraSetupLambda, cluster);
 
     // カスタムリソースの定義
-    const auroraDbSetup = new AwsCustomResource(this, 'AuroraDBSetup', {
-      onCreate: {
-        service: 'Lambda',
-        action: 'invoke',
-        parameters: {
-          FunctionName: auroraSetupLambda.functionName,
-          // 必要に応じて他のパラメータを追加
-        },
-        physicalResourceId: PhysicalResourceId.of(Date.now().toString()), // ユニークなID
-      },
-      policy: AwsCustomResourcePolicy.fromStatements([
-        new PolicyStatement({
-          actions: ['lambda:InvokeFunction'],
-          resources: [auroraSetupLambda.functionArn], // Lambda関数のARNを指定
-        })
-      ]),
-    });
+    const auroraDbSetup = createAuroraDbSetupResource(
+      this,
+      'AuroraDbSetup',
+      auroraSetupLambda,
+    );
 
 
     // DynamoDBテーブルの設定
-    const dynamoDBTable = new Table(this, 'DynamoDBTable', {
-      partitionKey: {
-        name: 'id',
-        type: AttributeType.STRING
-      },
-    });
+    const tableName: string = 'message_table';
+    const dynamoDBTable = createDynamoDBTable(
+      this,
+      'DynamoDBTable',
+      tableName,
+    );
+
 
     // Lambda関数の設定
-    // Lambdaレイヤーの作成
-    const dataProcessLambdaLayer = new LayerVersion(this, 'DataProcessLambdaLayer', {
-      code: Code.fromAsset('lib/backend/lambda/python/data_process_lambda_layer.zip'),
-      compatibleRuntimes: [Runtime.PYTHON_3_12],
-      description: 'A layer containing onnxruntime, pandas, and numpy',
-    });
-    // Lambda関数の作成
-    const postIdLambdaFunction = new Function(this, 'PostIdLambdaFunction', {
-      runtime: Runtime.PYTHON_3_12,
-      handler: 'post-id.handler',
-      code: Code.fromAsset('lib/backend/lambda/python/codes'),  // new AssetCode("lib/lambda/python/codes")
-      // layers: [dataProcessLambdaLayer], // レイヤーの追加
-      environment: {
-        TABLE_NAME: dynamoDBTable.tableName,
-        CLUSTER_ARN: cluster.clusterArn,
-        SECRET_ARN: cluster.secret?.secretArn || '', // シークレットのARNを環境変数に追加
-        DB_NAME: defaultDatabaseName,
-      },
-      initialPolicy: [
-        new PolicyStatement({
-          actions: ['secretsmanager:GetSecretValue'],
-          resources: [cluster.secret?.secretArn || ''],
-        }),
-      ],
-      timeout: Duration.seconds(30),
-    });
-
-    // LambdaにDynamoDBとAuroraへのアクセス権を付与
-    dynamoDBTable.grantReadWriteData(postIdLambdaFunction);
-    cluster.grantDataApiAccess(postIdLambdaFunction);
-
+    const environment: { [key: string]: any } = {
+      TABLE_NAME: dynamoDBTable.tableName,
+      CLUSTER_ARN: cluster.clusterArn,
+      SECRET_ARN: cluster.secret?.secretArn || '', // シークレットのARNを環境変数に追加
+      DB_NAME: defaultDatabaseName,
+    };
     // API Gatewayの設定
-    // const api = new LambdaRestApi(this, 'Endpoint', {
-    //   handler: lambdaFunction,
-    //   proxy: false,
-    // });
-    const api = new RestApi(this, "UmapApi", {
-      restApiName: "UMap Service",
-    });
+    const api = createRestApi(this, "UmapApi", "UMap Service");
 
-    const ids = api.root.addResource("id");
-    // const singleRoom = ids.addResource("{id}");
-    // const getRoomIntegration = new LambdaIntegration(getRoomLambda);
-    // const postRoomIntegration = new LambdaIntegration(postRoomLambda);
-    // const postIdIntegration: LambdaIntegration = integrateCorsLambda(postIdLambdaFunction);
-    const postIdIntegration: LambdaIntegration = new LambdaIntegration(postIdLambdaFunction);
-    // const getRoomShowIntegration = new LambdaIntegration(getRoomShowLambda);
-    // const postRoomUpdateIntegration = new LambdaIntegration(postRoomUpdateLambda);
-    // singleRoom.addMethod("GET", getRoomShowIntegration);
-    // singleRoom.addMethod("POST", postRoomUpdateIntegration);
-    // ids.addMethod("GET", getRoomIntegration);
-    ids.addMethod("POST", postIdIntegration);
+    // Lambdaレイヤーの作成
+    // const dataProcessLambdaLayer = createDataProcessLambdaLayer(
+    //   this,
+    //   'DataProcessLambdaLayer',
+    // );
+
+    // Lambda関数の作成
+    const postIdLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'PostIdLambdaFunction',
+      'post-id.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const postIdLambdaIntegration: LambdaIntegration = new LambdaIntegration(postIdLambdaFunction);
+    const ids: Resource = addPostResourcePath(api, "ids", postIdLambdaIntegration);
+
+    const PostCsvDockerLambdaFunction = createDataProcessDBAccessLambdaFunction(
+      this,
+      'PostCsvDockerLambdaFunction',
+      DockerImageCode.fromImageAsset('lib/backend/lambda/python/dockers/post-csv'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const postCsvDockerLambdaIntegration: LambdaIntegration = new LambdaIntegration(PostCsvDockerLambdaFunction);
+    const csvs = addPostResourcePath(api, "csv", postCsvDockerLambdaIntegration);
   }
 }

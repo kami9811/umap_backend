@@ -1,6 +1,7 @@
 import { 
   Vpc,
   SecurityGroup,
+  Port,
 } from 'aws-cdk-lib/aws-ec2';
 import { Construct } from 'constructs';
 
@@ -21,4 +22,15 @@ export function createSecurityGroup(
     description,
     allowAllOutbound,
   });
+}
+
+export function allowLambdaToAurora(
+  lambdaSecurityGroup: SecurityGroup, 
+  auroraSecurityGroup: SecurityGroup,
+): void {
+  auroraSecurityGroup.addIngressRule(
+    lambdaSecurityGroup, 
+    Port.tcp(3306),
+    'Allow access from Lambda'
+  );
 }

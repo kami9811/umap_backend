@@ -8,6 +8,7 @@ services:
     volumes:
       - ./src:/usr/src
       - ./.aws:/root/.aws
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker ソケットのマウント
     working_dir: "/usr/src"
     tty: true
     platform: linux/amd64  # For Apple Silicon Tips

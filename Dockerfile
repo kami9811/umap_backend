@@ -3,18 +3,25 @@ FROM node:18.17.1
 WORKDIR /usr/src
 COPY ./src /usr/src
 
-# General packages
-RUN apt-get update
+# Docker CLI のインストール
+RUN apt-get update && apt-get install -y \
+  apt-transport-https \
+  ca-certificates \
+  curl \
+  gnupg-agent \
+  software-properties-common && \
+  curl -fsSL https://get.docker.com -o get-docker.sh && \
+  sh get-docker.sh && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g aws-cdk
-RUN npm install @aws-cdk/aws-rds
-RUN npm install @aws-cdk/aws-dynamodb
-RUN npm install @aws-cdk/aws-lambda
+# npm install コマンドは必要に応じて
 
-# aws cli v2 install
-# https://docs.aws.amazon.com/ja_jp/cli/latest/userguide/install-cliv2-linux.html
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-RUN unzip awscliv2.zip
-RUN ./aws/install
+# AWS CLI v2 のインストール
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+  unzip awscliv2.zip && \
+  ./aws/install && \
+  rm -rf awscliv2.zip ./aws
 
-COPY ./.aws ~/
+COPY ./.aws /root/.aws
