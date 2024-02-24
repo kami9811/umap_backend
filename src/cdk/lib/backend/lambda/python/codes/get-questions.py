@@ -53,50 +53,50 @@ def execute_statement_with_retry(
             time.sleep(delay_with_jitter)
 
 def handler(event, context):
-    # API Gatewayからのリクエストボディを解析
-    body = json.loads(event['body'])
-    organization_id = body['organization_id']
-    data_attributes = json.dumps(body['data_attributes'])  # JSONオブジェクトを文字列に変換
-    is_abstract_data = json.dumps(body['is_abstract_data'])  # JSONオブジェクトを文字列に変換
+    # クエリパラメータからitem_idを取得
+    item_id = event['queryStringParameters']['item_id']
 
     # SQL文の準備
     sql = """
-    UPDATE ORGANIZATIONS
-    SET data_attributes = :data_attributes, is_abstract_data = :is_abstract_data
-    WHERE id = :organization_id
+    SELECT id, question_title FROM QUESTIONS WHERE item_id = :item_id
     """
 
     # パラメータの準備
     parameters = [
-        {'name': 'organization_id', 'value': {'stringValue': organization_id}},
-        {'name': 'data_attributes', 'value': {'stringValue': data_attributes}},
-        {'name': 'is_abstract_data', 'value': {'stringValue': is_abstract_data}}
+        {'name': 'item_id', 'value': {'longValue': int(item_id)}}
     ]
 
     # Aurora DBに対してSQL文を実行
     try:
-        # rds_data.execute_statement(
-        #     database=DB_NAME,
-        #     resourceArn=CLUSTER_ARN,
-        #     secretArn=SECRET_ARN,
-        #     sql=sql,
-        #     parameters=parameters
-        # )
         response = execute_statement_with_retry(
             rds_data,
             sql,
             parameters,
         )
-        response_message = "記録に成功しました．"
+        
+        # レスポンスからデータを抽出
+        questions = [
+            {"question_id": record[0]['longValue'], "question_title": record[1]['stringValue']}
+            for record in response['records']
+        ]
+        
+        response_message = {
+            "status": 200,
+            "questions": questions,
+            "message": "Questions fetched successfully"
+        }
         status_code = 200
     except Exception as e:
-        response_message = str(e)
+        response_message = {
+            "status": 400,
+            "message": "Error fetching questions: " + str(e)
+        }
         status_code = 400
 
     # レスポンスの生成
     return {
         'statusCode': status_code,
-        'body': json.dumps({'message': response_message}),
+        'body': json.dumps(response_message),
         'headers': {
             "Access-Control-Allow-Headers": "Content-Type",
             "Access-Control-Allow-Origin": '*',

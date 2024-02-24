@@ -247,5 +247,57 @@ export class BackendStack extends Stack {
     const getNearItemsLambdaIntegration: LambdaIntegration = new LambdaIntegration(getNearItemsLambdaFunction);
     const nearItems: Resource = addGetResourcePath(api, "near_items", getNearItemsLambdaIntegration);
 
+    const getRecommendItemsLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'getRecommendItemsLambdaFunction',
+      'get-recommend-items.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const getRecommendItemsLambdaIntegration: LambdaIntegration = new LambdaIntegration(getRecommendItemsLambdaFunction);
+    const recommendItems: Resource = addGetResourcePath(api, "recommend_items", getRecommendItemsLambdaIntegration);
+
+    // TODO: Rename resource when replace
+    const postQuestionToItemLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'postQuestionToItemLambdaFunction',
+      'post-question-to-item.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const postQuestionToItemLambdaIntegration: LambdaIntegration = new LambdaIntegration(postQuestionToItemLambdaFunction);
+    const question: Resource = api.root.addResource("question_prime");
+    // const questionToItem: Resource = question.addResource("{item_id}");
+    const questionToId: Resource = question.addResource("{id}");
+    questionToId.addMethod("POST", postQuestionToItemLambdaIntegration);
+
+    const getQuestionsLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'getQuestionsLambdaFunction',
+      'get-questions.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const getQuestionsLambdaIntegration: LambdaIntegration = new LambdaIntegration(getQuestionsLambdaFunction);
+    const questions: Resource = addGetResourcePath(api, "questions", getQuestionsLambdaIntegration);
+
+    // TODO: Rename resource when replace
+    const getQuestionLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'getQuestionLambdaFunction',
+      'get-question.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const getQuestionLambdaIntegration: LambdaIntegration = new LambdaIntegration(getQuestionLambdaFunction);
+    questionToId.addMethod("GET", getQuestionLambdaIntegration);
   }
 }

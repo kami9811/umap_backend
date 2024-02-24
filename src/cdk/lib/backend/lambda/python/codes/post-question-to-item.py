@@ -55,42 +55,36 @@ def execute_statement_with_retry(
 def handler(event, context):
     # API Gatewayからのリクエストボディを解析
     body = json.loads(event['body'])
-    organization_id = body['organization_id']
-    data_attributes = json.dumps(body['data_attributes'])  # JSONオブジェクトを文字列に変換
-    is_abstract_data = json.dumps(body['is_abstract_data'])  # JSONオブジェクトを文字列に変換
+    item_id = event['pathParameters']['id']  # Path parameterの取得
+    question_user = body['question_user']
+    question_title = body['question_title']
+    question_text = body['question_text']
 
     # SQL文の準備
     sql = """
-    UPDATE ORGANIZATIONS
-    SET data_attributes = :data_attributes, is_abstract_data = :is_abstract_data
-    WHERE id = :organization_id
+    INSERT INTO QUESTIONS (item_id, question_user, question_title, question_text)
+    VALUES (:item_id, :question_user, :question_title, :question_text)
     """
 
     # パラメータの準備
     parameters = [
-        {'name': 'organization_id', 'value': {'stringValue': organization_id}},
-        {'name': 'data_attributes', 'value': {'stringValue': data_attributes}},
-        {'name': 'is_abstract_data', 'value': {'stringValue': is_abstract_data}}
+        {'name': 'item_id', 'value': {'longValue': int(item_id)}},
+        {'name': 'question_user', 'value': {'stringValue': question_user}},
+        {'name': 'question_title', 'value': {'stringValue': question_title}},
+        {'name': 'question_text', 'value': {'stringValue': question_text}}
     ]
 
     # Aurora DBに対してSQL文を実行
     try:
-        # rds_data.execute_statement(
-        #     database=DB_NAME,
-        #     resourceArn=CLUSTER_ARN,
-        #     secretArn=SECRET_ARN,
-        #     sql=sql,
-        #     parameters=parameters
-        # )
         response = execute_statement_with_retry(
             rds_data,
             sql,
             parameters,
         )
-        response_message = "記録に成功しました．"
+        response_message = "質問を保存しました。"
         status_code = 200
     except Exception as e:
-        response_message = str(e)
+        response_message = "質問の保存に失敗しました: " + str(e)
         status_code = 400
 
     # レスポンスの生成

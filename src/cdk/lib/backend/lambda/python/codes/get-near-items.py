@@ -27,7 +27,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     distance = R * c
     return distance
 
-def execute_statement_with_retry(sql, parameters, max_attempts=5, base_delay=4.0, max_delay=30.0):
+def execute_statement_with_retry(sql, parameters, max_attempts=5, base_delay=2.0, max_delay=30.0):
     attempt = 0
     while attempt < max_attempts:
         try:
@@ -81,7 +81,7 @@ def handler(event, context):
     print(nearest_items)
     result_items = [{
         "data_values": json.loads(item[0][1]['stringValue']),
-        "is_abstract_data": json.loads(item[0][2]['stringValue'])
+        "is_abstract_data": None if next(iter(item[0][2].values())) == True else json.loads(item[0][2]['stringValue']) 
     } for item in nearest_items]
 
     # ORGANIZATIONSからis_abstract_dataを取得
