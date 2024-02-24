@@ -47,7 +47,7 @@ def handler(event, context):
 
     # SQL to join QUESTIONS and ANSWERS tables and select required fields
     sql = """
-    SELECT q.question_title, q.question_text, a.id AS answer_id, a.answer_text
+    SELECT q.question_title, q.question_text, a.id AS answer_user, a.answer_text
     FROM QUESTIONS q
     LEFT JOIN ANSWERS a ON q.id = a.question_id
     WHERE q.id = :question_id
@@ -70,7 +70,7 @@ def handler(event, context):
                 question_text = record[1]['stringValue']
             if record[2]:  # If there is an answer
                 answers.append({
-                    "answer_id": None if next(iter(record[2].values())) == True else record[2]['longValue'],
+                    "answer_user": None if next(iter(record[2].values())) == True else record[2]['stringValue'],
                     "answer_text": None if next(iter(record[3].values())) == True else record[3]['stringValue']
                 })
 

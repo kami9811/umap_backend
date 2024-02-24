@@ -110,7 +110,7 @@ export function createDBAccessLambdaFunction(
   environment: { [key: string]: any },  // TODO: anyを避ける方法を検討
   cluster: ServerlessCluster,
   dynamoDBTable: Table,
-  timeout: Duration = Duration.seconds(30),
+  timeout: Duration = Duration.seconds(60),
 ): Function {
   const lambdaFunction: Function = new Function(scope, id, {
     runtime: Runtime.PYTHON_3_12,
@@ -140,7 +140,8 @@ export function createDataProcessDBAccessLambdaFunction(
   environment: { [key: string]: any },  // TODO: anyを避ける方法を検討
   cluster: ServerlessCluster,
   dynamoDBTable: Table,
-  timeout: Duration = Duration.seconds(30),
+  timeout: Duration = Duration.seconds(60),
+  memorySize: number = 128,
 ): Function {
   const lambdaFunction: Function = new DockerImageFunction(scope, id, {
     code: code,
@@ -152,6 +153,7 @@ export function createDataProcessDBAccessLambdaFunction(
       }),
     ],
     timeout: timeout,
+    memorySize: memorySize,
   });
 
   // LambdaにDynamoDBとAuroraへのアクセス権を付与

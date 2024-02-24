@@ -79,6 +79,10 @@ def handler(event, context):
 
     # 結果を整形
     print(nearest_items)
+    for item in nearest_items:
+        data_values = json.loads(item[0][1]['stringValue'])
+        data_values['item_id'] = item[0][0]['longValue']
+        item[0][1]['stringValue'] = json.dumps(data_values)
     result_items = [{
         "data_values": json.loads(item[0][1]['stringValue']),
         "is_abstract_data": None if next(iter(item[0][2].values())) == True else json.loads(item[0][2]['stringValue']) 

@@ -299,5 +299,32 @@ export class BackendStack extends Stack {
     );
     const getQuestionLambdaIntegration: LambdaIntegration = new LambdaIntegration(getQuestionLambdaFunction);
     questionToId.addMethod("GET", getQuestionLambdaIntegration);
+
+    const getMultiEmotionDockerLambdaFunction = createDataProcessDBAccessLambdaFunction(
+      this,
+      'getMultiEmotionDockerLambdaFunction',
+      DockerImageCode.fromImageAsset('lib/backend/lambda/python/dockers/get-multi-emotion'),
+      environment,
+      cluster,
+      dynamoDBTable,
+      Duration.seconds(120),
+      2048,
+    );
+    const getMultiEmotionDockerLambdaIntegration: LambdaIntegration = new LambdaIntegration(getMultiEmotionDockerLambdaFunction);
+    const multi_emotion: Resource = addGetResourcePath(api, "multi_emotion", getMultiEmotionDockerLambdaIntegration);
+
+    const postAnswerToQuestionLambdaFunction = createDBAccessLambdaFunction(
+      this,
+      'postAnswerToQuestionLambdaFunction',
+      'post-answer-to-question.handler',
+      Code.fromAsset('lib/backend/lambda/python/codes'),
+      environment,
+      cluster,
+      dynamoDBTable,
+    );
+    const postAnswerToQuestionLambdaIntegration: LambdaIntegration = new LambdaIntegration(postAnswerToQuestionLambdaFunction);
+    const answer: Resource = api.root.addResource("answer");
+    const answerToId: Resource = answer.addResource("{id}");
+    answerToId.addMethod("POST", postAnswerToQuestionLambdaIntegration);
   }
 }

@@ -6,12 +6,12 @@ import os
 import time
 import random
 
-# Environment variables
+# 環境変数からリソース名を取得
 CLUSTER_ARN = os.environ['CLUSTER_ARN']
 SECRET_ARN = os.environ['SECRET_ARN']
 DB_NAME = os.environ['DB_NAME']
 
-# Initialize RDS Data Service client
+# RDS Data Serviceクライアントの初期化
 rds_config = Config(
     read_timeout=90,
     connect_timeout=30,
@@ -42,54 +42,40 @@ def execute_statement_with_retry(rds_data, sql, parameters, max_attempts=5, base
             print(f"Retrying in {delay_with_jitter:.2f} seconds...")
             time.sleep(delay_with_jitter)
 
-# TODO: Fix for org merge search based on organization_id
 def handler(event, context):
-    # Retrieve query parameters
-    query_params = event['queryStringParameters']
-    item_id = query_params.get('item_id', None)
-    organization_id = query_params.get('organization_id', None)
+    body = json.loads(event['body'])
+    question_id = body['question_id']
+    answer_user = body['answer_user']
+    answer_text = body['answer_text']
 
-    # SQL query preparation
-    base_sql = "SELECT id, question_title FROM QUESTIONS"
-    conditions = []
-    parameters = []
-    
-    if item_id:
-        conditions.append("item_id = :item_id")
-        parameters.append({'name': 'item_id', 'value': {'longValue': int(item_id)}})
-    if organization_id:
-        conditions.append("organization_id = :organization_id")
-        # organization_id is string type
-        parameters.append({'name': 'organization_id', 'value': {'stringValue': organization_id}})
-        # parameters.append({'name': 'organization_id', 'value': {'longValue': int(organization_id)}})
-    
-    if conditions:
-        sql = f"{base_sql} WHERE {' AND '.join(conditions)}"
-    else:
-        sql = base_sql
+    # SQL文の準備
+    sql = """
+    INSERT INTO ANSWERS (question_id, answer_user, answer_text) 
+    VALUES (:question_id, :answer_user, :answer_text)
+    """
 
-    # Execute SQL query
+    # パラメータの準備
+    parameters = [
+        {'name': 'question_id', 'value': {'longValue': int(question_id)}},  # Assuming question_id is an integer
+        {'name': 'answer_user', 'value': {'stringValue': answer_user}},
+        {'name': 'answer_text', 'value': {'stringValue': answer_text}}
+    ]
+
     try:
-        response = execute_statement_with_retry(rds_data, sql, parameters)
-        questions = [{"question_id": record[0]['longValue'], "question_title": record[1]['stringValue']}
-                     for record in response['records']]
-        
-        response_message = {
-            "status": 200,
-            "questions": questions,
-            "message": "Questions fetched successfully"
-        }
+        response = execute_statement_with_retry(
+            rds_data,
+            sql,
+            parameters,
+        )
+        response_message = "記録に成功しました．"
         status_code = 200
     except Exception as e:
-        response_message = {
-            "status": 400,
-            "message": "Error fetching questions: " + str(e)
-        }
+        response_message = str(e)
         status_code = 400
 
     return {
         'statusCode': status_code,
-        'body': json.dumps(response_message),
+        'body': json.dumps({'message': response_message}),
         'headers': {
             "Access-Control-Allow-Headers": "Content-Type",
             "Access-Control-Allow-Origin": '*',

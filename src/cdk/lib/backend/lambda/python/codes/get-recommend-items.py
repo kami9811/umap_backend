@@ -104,6 +104,7 @@ def handler(event, context):
         result_items = []
         for item in items:
             data_values = json.loads(item[1]['stringValue'])
+            data_values['item_id'] = item[0]['longValue']
             is_abstract_data = None if next(iter(item[2].values())) == True else json.loads(item[2]['stringValue']) 
             result_items.append({
                 "data_values": data_values,

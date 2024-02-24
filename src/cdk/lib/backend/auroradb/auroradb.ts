@@ -21,7 +21,7 @@ export function createAuroraServerless(
     engine: DatabaseClusterEngine.AURORA_MYSQL,
     vpc,
     scaling: {
-      autoPause: Duration.minutes(5),
+      autoPause: Duration.minutes(0),
       minCapacity: AuroraCapacityUnit.ACU_1,
       maxCapacity: AuroraCapacityUnit.ACU_16,
     },
